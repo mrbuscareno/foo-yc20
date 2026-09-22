@@ -31,12 +31,15 @@ jobs:
           # Generate Audio Unit plugin (.component)
           faust2au foo-yc20.dsp
           
-          cd ..
+          # Locate generated .component folder anywhere in the workspace or home directory
+          cd $GITHUB_WORKSPACE
           mkdir -p build-au
-          mv faust/foo-yc20.component build-au/
+          
+          # Find and copy any generated .component bundle to build-au
+          find . ~ -maxdepth 5 -name "*.component" -exec cp -R {} build-au/ \;
 
       - name: Upload AU Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: foo-yc20-AU-GarageBand-Logic
-          path: build-au/foo-yc20.component
+          path: build-au/*.component
