@@ -1,9 +1,9 @@
-name: Build macOS AU Component
+name: Build Native macOS Audio Unit (AU)
 
 on: [push, workflow_dispatch]
 
 jobs:
-  build-macos:
+  build-au:
     runs-on: macos-latest
     steps:
       - name: Checkout Code
@@ -11,50 +11,32 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install Dependencies
+      - name: Install Build Dependencies
         run: |
-          brew install faust pkg-config
+          brew install cmake faust
 
-      - name: Compile Faust DSP to macOS Audio Unit
+      - name: Install JUCE Framework
         run: |
-          # Create Audio Unit bundle directories
-          mkdir -p build-au/foo-yc20.component/Contents/MacOS
+          git clone --depth 1 https://github.com/juce-framework/JUCE.git ~/JUCE
 
-          # Generate single C++ Audio Unit source from Faust code using the native AU architecture
-          faust -a au-effect.cpp faust/yc20.dsp -o foo-yc20-au.cpp || \
-          faust -a au-effect.cpp faust/foo-yc20.dsp -o foo-yc20-au.cpp || \
-          faust -a au-effect.cpp yc20.dsp -o foo-yc20-au.cpp
+      - name: Generate C++ Audio Unit Source via faust2juce
+        run: |
+          # Generate the JUCE source code using faust2juce
+          faust2juce -jucemodulesdir ~/JUCE/modules yc20.dsp
 
-          # Compile C++ code into universal macOS binary (Intel + Apple Silicon)
-          clang++ -arch arm64 -arch x86_64 -std=c++11 -shared \
-            -framework AudioUnit -framework CoreAudio -framework CoreFoundation -framework AudioToolbox \
-            -I$(brew --prefix faust)/share/faust \
-            foo-yc20-au.cpp -o build-au/foo-yc20.component/Contents/MacOS/foo-yc20
+          # Enter the generated project directory
+          cd yc20/Builds/MacOSX
 
-          # Generate Info.plist required by macOS Audio Unit validation
-          cat << 'EOF' > build-au/foo-yc20.component/Contents/Info.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleExecutable</key>
-              <string>foo-yc20</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.mamedev.fooyc20</string>
-              <key>CFBundleName</key>
-              <string>foo-yc20</string>
-              <key>CFBundlePackageType</key>
-              <string>BNDL</string>
-              <key>CFBundleSignature</key>
-              <string>????</string>
-              <key>CFBundleVersion</key>
-              <string>1.0</string>
-          </dict>
-          </plist>
-          EOF
+          # Configure Xcode build settings for Audio Unit
+          xcodebuild -project yc20.xcodeproj -scheme "yc20 - AU" -configuration Release build
 
-      - name: Upload AU Artifacts
+      - name: Package Audio Unit Bundle
+        run: |
+          mkdir -p build-au/
+          cp -r yc20/Builds/MacOSX/build/Release/yc20.component build-au/
+
+      - name: Upload Native AU Artifact
         uses: actions/upload-artifact@v5
         with:
-          name: foo-yc20-AU-GarageBand-Logic
-          path: build-au/foo-yc20.component
+          name: foo-yc20-Native-AU
+          path: build-au/yc20.component
