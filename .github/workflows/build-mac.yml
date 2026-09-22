@@ -17,6 +17,14 @@ jobs:
 
       - name: Build Faust AU Target
         run: |
+          # Set Faust library path for Homebrew on Apple Silicon / macOS runners
+          export FAUSTLIB=$(brew --prefix faust)/share/faust
+          
+          # Symlink Faust headers where faust2au expects them
+          sudo mkdir -p /usr/local/include /usr/local/share
+          sudo ln -s $(brew --prefix faust)/include/faust /usr/local/include/faust
+          sudo ln -s $(brew --prefix faust)/share/faust /usr/local/share/faust
+
           # Generate Audio Unit plugin (.component)
           faust2au -universal faust/yc20.dsp
           mkdir -p build-au
