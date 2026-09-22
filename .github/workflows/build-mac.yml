@@ -11,32 +11,68 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install Build Dependencies
+      - name: Install Faust Compiler
         run: |
-          brew install cmake faust
+          brew install faust
 
-      - name: Install JUCE Framework
+      - name: Locate DSP Source and Generate C++ AU Target
         run: |
-          git clone --depth 1 https://github.com/juce-framework/JUCE.git ~/JUCE
+          # Create working output structure
+          mkdir -p build-au/foo-yc20.component/Contents/MacOS
+          mkdir -p build-au/foo-yc20.component/Contents/Resources
 
-      - name: Generate C++ Audio Unit Source via faust2juce
+          # Locate the primary Faust DSP file dynamically in the repository
+          DSP_FILE=$(find . -name "yc20.dsp" -o -name "foo-yc20.dsp" | head -n 1)
+          if [ -z "$DSP_FILE" ]; then
+            echo "Error: Could not locate DSP source file." && exit 1
+          fi
+          echo "Found DSP source file at: $DSP_FILE"
+
+          # Transpile Faust DSP to C++ Audio Unit architecture
+          faust -a au-effect.cpp -I $(dirname "$DSP_FILE") "$DSP_FILE" -o build-au/au-wrapper.cpp
+
+      - name: Compile Universal Audio Unit Binary
         run: |
-          # Generate the JUCE source code using faust2juce
-          faust2juce -jucemodulesdir ~/JUCE/modules yc20.dsp
+          cd build-au
+          FAUST_SHARE=$(brew --prefix faust)/share/faust
 
-          # Enter the generated project directory
-          cd yc20/Builds/MacOSX
+          # Compile universal arm64 (Apple Silicon) + x86_64 (Intel) bundle
+          clang++ -arch arm64 -arch x86_64 -std=c++11 -shared \
+            -framework AudioUnit \
+            -framework CoreAudio \
+            -framework AudioToolbox \
+            -framework CoreFoundation \
+            -I "$FAUST_SHARE" \
+            au-wrapper.cpp \
+            -o foo-yc20.component/Contents/MacOS/foo-yc20
 
-          # Configure Xcode build settings for Audio Unit
-          xcodebuild -project yc20.xcodeproj -scheme "yc20 - AU" -configuration Release build
-
-      - name: Package Audio Unit Bundle
+      - name: Generate Audio Unit Info.plist
         run: |
-          mkdir -p build-au/
-          cp -r yc20/Builds/MacOSX/build/Release/yc20.component build-au/
+          cat << 'EOF' > build-au/foo-yc20.component/Contents/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>foo-yc20</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.faust.fooyc20</string>
+              <key>CFBundleName</key>
+              <string>foo-yc20</string>
+              <key>CFBundlePackageType</key>
+              <string>BNDL</string>
+              <key>CFBundleSignature</key>
+              <string>????</string>
+              <key>CFBundleVersion</key>
+              <string>1.0</string>
+              <key>CSResourcesFileMapped</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
 
-      - name: Upload Native AU Artifact
+      - name: Upload Audio Unit Artifact
         uses: actions/upload-artifact@v5
         with:
           name: foo-yc20-Native-AU
-          path: build-au/yc20.component
+          path: build-au/foo-yc20.component
