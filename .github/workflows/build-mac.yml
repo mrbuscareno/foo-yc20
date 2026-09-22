@@ -1,0 +1,29 @@
+name: Build macOS AU Component
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Dependencies
+        run: |
+          brew install cmake pkg-config libsndfile jack lv2 faust
+
+      - name: Build Faust AU Target
+        run: |
+          # Generate Audio Unit plugin (.component)
+          faust2au -universal faust/yc20.dsp
+          mkdir -p build-au
+          mv faust/yc20.component build-au/
+
+      - name: Upload AU Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: foo-yc20-AU-GarageBand-Logic
+          path: build-au/yc20.component
