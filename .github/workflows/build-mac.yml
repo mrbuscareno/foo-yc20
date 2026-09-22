@@ -15,21 +15,13 @@ jobs:
         run: |
           brew install faust
 
-      - name: Locate DSP Source and Generate C++ AU Target
+      - name: Transpile Faust DSP to Audio Unit C++
         run: |
-          # Create working output structure
           mkdir -p build-au/foo-yc20.component/Contents/MacOS
           mkdir -p build-au/foo-yc20.component/Contents/Resources
 
-          # Locate the primary Faust DSP file dynamically in the repository
-          DSP_FILE=$(find . -name "yc20.dsp" -o -name "foo-yc20.dsp" | head -n 1)
-          if [ -z "$DSP_FILE" ]; then
-            echo "Error: Could not locate DSP source file." && exit 1
-          fi
-          echo "Found DSP source file at: $DSP_FILE"
-
-          # Transpile Faust DSP to C++ Audio Unit architecture
-          faust -a au-effect.cpp -I $(dirname "$DSP_FILE") "$DSP_FILE" -o build-au/au-wrapper.cpp
+          # Transpile the correct main DSP entry point using the Audio Unit Instrument architecture
+          faust -a au-instrument.cpp -I faust faust/foo-yc20.dsp -o build-au/au-wrapper.cpp
 
       - name: Compile Universal Audio Unit Binary
         run: |
