@@ -15,22 +15,24 @@ jobs:
         run: |
           brew install cmake pkg-config libsndfile jack lv2 faust
 
-      - name: Build AU Component via Faust Architecture
+      - name: Build AU Bundle
         run: |
-          cd faust
-          # Generate C++ architecture code using Faust for Audio Unit
-          faust -a au-effect.cpp -o foo-yc20-au.cpp foo-yc20.dsp
+          # 1. Generate single C++ file from Faust source files
+          faust -I faust-src -a au-effect.cpp faust-src/yc20.dsp -o faust-gen.cpp || \
+          faust -a au-effect.cpp faust-src/foo-yc20.dsp -o faust-gen.cpp || \
+          faust -a au-effect.cpp dsp/yc20.dsp -o faust-gen.cpp
 
-          # Compile the generated C++ source into an Audio Unit bundle
-          mkdir -p ../build-au/foo-yc20.component/Contents/MacOS
-          
+          # 2. Create Audio Unit Bundle structure
+          mkdir -p build-au/foo-yc20.component/Contents/MacOS
+
+          # 3. Compile universal binary (Intel + Apple Silicon)
           clang++ -arch arm64 -arch x86_64 -std=c++11 -shared \
             -framework AudioUnit -framework CoreAudio -framework CoreFoundation -framework AudioToolbox \
             -I$(brew --prefix faust)/share/faust \
-            foo-yc20-au.cpp -o ../build-au/foo-yc20.component/Contents/MacOS/foo-yc20
+            faust-gen.cpp -o build-au/foo-yc20.component/Contents/MacOS/foo-yc20
 
-          # Create Info.plist structure for macOS Audio Unit recognition
-          cat << 'EOF' > ../build-au/foo-yc20.component/Contents/Info.plist
+          # 4. Generate Info.plist required by macOS AU scanner
+          cat << 'EOF' > build-au/foo-yc20.component/Contents/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
