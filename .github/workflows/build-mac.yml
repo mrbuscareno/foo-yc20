@@ -25,13 +25,18 @@ jobs:
           sudo ln -s $(brew --prefix faust)/include/faust /usr/local/include/faust
           sudo ln -s $(brew --prefix faust)/share/faust /usr/local/share/faust
 
+          # Navigate into the faust directory where foo-yc20.dsp lives
+          cd faust
+          
           # Generate Audio Unit plugin (.component)
-          faust2au -universal faust/yc20.dsp
+          faust2au foo-yc20.dsp
+          
+          cd ..
           mkdir -p build-au
-          mv faust/yc20.component build-au/
+          mv faust/foo-yc20.component build-au/
 
       - name: Upload AU Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: foo-yc20-AU-GarageBand-Logic
-          path: build-au/yc20.component
+          path: build-au/foo-yc20.component
