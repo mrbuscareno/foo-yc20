@@ -13,24 +13,25 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install cmake pkg-config libsndfile jack lv2 faust
+          brew install faust pkg-config
 
-      - name: Compile AU Component Bundle
+      - name: Compile Faust DSP to macOS Audio Unit
         run: |
-          # 1. Create the Audio Unit bundle folder structure
+          # Create Audio Unit bundle directories
           mkdir -p build-au/foo-yc20.component/Contents/MacOS
 
-          # 2. Compile pre-generated C++ code into universal binary
-          clang++ -arch arm64 -arch x86_64 -std=c++11 -shared \
-            -framework AudioUnit -framework CoreAudio -framework CoreFoundation -framework AudioToolbox \
-            -I. -Igen -I$(brew --prefix faust)/share/faust \
-            gen/yc20-dsp-plugin.cpp -o build-au/foo-yc20.component/Contents/MacOS/foo-yc20 || \
-          clang++ -arch arm64 -arch x86_64 -std=c++11 -shared \
-            -framework AudioUnit -framework CoreAudio -framework CoreFoundation -framework AudioToolbox \
-            -I. -Igen -I$(brew --prefix faust)/share/faust \
-            src/*.cpp -o build-au/foo-yc20.component/Contents/MacOS/foo-yc20
+          # Generate single C++ Audio Unit source from Faust code using the native AU architecture
+          faust -a au-effect.cpp faust/yc20.dsp -o foo-yc20-au.cpp || \
+          faust -a au-effect.cpp faust/foo-yc20.dsp -o foo-yc20-au.cpp || \
+          faust -a au-effect.cpp yc20.dsp -o foo-yc20-au.cpp
 
-          # 3. Create Audio Unit Info.plist required by Logic / GarageBand
+          # Compile C++ code into universal macOS binary (Intel + Apple Silicon)
+          clang++ -arch arm64 -arch x86_64 -std=c++11 -shared \
+            -framework AudioUnit -framework CoreAudio -framework CoreFoundation -framework AudioToolbox \
+            -I$(brew --prefix faust)/share/faust \
+            foo-yc20-au.cpp -o build-au/foo-yc20.component/Contents/MacOS/foo-yc20
+
+          # Generate Info.plist required by macOS Audio Unit validation
           cat << 'EOF' > build-au/foo-yc20.component/Contents/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
